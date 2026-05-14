@@ -364,7 +364,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
     <!-- 출석 카드 — 상담 내용 아래로 이동 -->
     <div class="sec">
       <div class="sec-hd blue">📋 출석 인원 (부별)</div>
-      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:0;" id="buCardsWrap"></div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:0;" id="buCardsWrap"></div>
       <div style="background:var(--green-lt);display:grid;grid-template-columns:1fr 1fr;padding:8px 14px;border-top:1px solid #C8E6C9;">
         <div style="font-size:12px;font-weight:700;color:var(--teal);">합계 출석: <span id="tot_att" style="font-size:16px;">0</span>명</div>
         <div style="font-size:12px;font-weight:700;color:var(--red);text-align:right;">결석: <span id="tot_abs" style="font-size:16px;">0</span>명</div>
@@ -585,8 +585,8 @@ const FB_CONFIG = {
 // CONSTANTS & STATE
 // ══════════════════════════════════════════
 const DAYS_KR = ['일','월','화','수','목','금','토'];
-const BU_LABELS = ['1부','2부','3부','4부','5부','6부'];
-const BU_DEFAULT = [20,20,20,20,20,20];
+const BU_LABELS = ['1부','2부','3부','4부','5부','6부','7부'];
+const BU_DEFAULT = [20,20,20,20,20,20,20];
 const MY_ID = 'u_' + Math.random().toString(36).slice(2,8);
 
 let currentDate = new Date();
@@ -897,14 +897,14 @@ function buildAttTable() {
   BU_LABELS.forEach((lbl,i)=>{
     const div=document.createElement('div');
     div.style.cssText='text-align:center;padding:10px 4px;border-right:1px solid #F0F4F8;';
-    if(i===5) div.style.borderRight='none';
+    if(i===6) div.style.borderRight='none';
     div.innerHTML=`<div style="font-size:11px;font-weight:700;color:var(--gray);margin-bottom:6px;">${lbl}</div><input type="number" id="att_${i}" min="0" value="0" oninput="updateTotals()" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:6px 2px;font-size:18px;font-weight:900;font-family:inherit;text-align:center;color:var(--blue);background:#F8FBFF;">`;
     wrap.appendChild(div);
   });
 }
 function updateTotals(){
   let sA=0;
-  for(let i=0;i<6;i++) sA+=parseInt(document.getElementById('att_'+i).value)||0;
+  for(let i=0;i<7;i++) sA+=parseInt(document.getElementById('att_'+i).value)||0;
   // 현재 날짜까지의 총원 기준으로 결석 계산
   const {newC,restC,outC,base} = getCountsUpTo(dateKey(currentDate));
   const totalMember = base + newC + restC - outC;
@@ -947,7 +947,7 @@ function setAbsList(list){document.getElementById('absRows').innerHTML='';absCou
 // ══════════════════════════════════════════
 function loadCurrentDay(){
   const key=dateKey(currentDate),d=allData[key]||{};
-  for(let i=0;i<6;i++){document.getElementById('att_'+i).value=(d.att&&d.att[i]!==undefined)?d.att[i]:0;}
+  for(let i=0;i<7;i++){document.getElementById('att_'+i).value=(d.att&&d.att[i]!==undefined)?d.att[i]:0;}
   setAbsList(d.absList||[]);
   document.getElementById('taEvent').value=d.event||'';
   document.getElementById('taMtg').value=d.mtg||'';
@@ -1002,7 +1002,7 @@ async function saveDay(){
   btn.className='save-btn saving';txt.textContent='저장 중...';
   const key=dateKey(currentDate);
   const att=[];
-  for(let i=0;i<6;i++){att.push(parseInt(document.getElementById('att_'+i).value)||0);}
+  for(let i=0;i<7;i++){att.push(parseInt(document.getElementById('att_'+i).value)||0);}
   const mgrInVal=document.getElementById('mgrIn').value;
   const mgrReVal=document.getElementById('mgrRe').value;
   const mgrOutVal=document.getElementById('mgrOut').value;
@@ -1014,19 +1014,19 @@ async function saveDay(){
       // 일별 데이터에만 저장 (명단 포함) — 월별 집계는 화면 표시 시 실시간 계산
       await fbRef.child('days').child(key).set(data);
 
-      // 매달 1일: 전달 총원 자동 이월
+      // 이달 base가 없으면 전달 총원 자동 이월
       const mk2=monthKey(currentDate);
       if(!monthData[mk2]) monthData[mk2]={};
       const curMd=monthData[mk2];
-      if(currentDate.getDate()===1 && !curMd.base){
-        const prevMk=monthKey(new Date(currentDate.getFullYear(),currentDate.getMonth()-1,1));
-        const prevMd=monthData[prevMk]||{};
+      if(!curMd.base){
+        const prevDate=new Date(currentDate.getFullYear(),currentDate.getMonth(),0);
+        const prevMk=monthKey(prevDate);
         const prevTotal=calcMemberUpTo(prevMk, null); // 전달 전체 집계
         if(prevTotal>0){
           curMd.base=prevTotal;
           await fbRef.child('months').child(mk2).child('base').set(prevTotal);
           monthData[mk2]=curMd;
-          showToast('🔄 새 달! 전달 총원 자동 이월됨');
+          showToast('🔄 전달 총원 자동 이월됨 ('+prevTotal+'명)');
         }
       }
 
@@ -1099,8 +1099,17 @@ function updateMonthStrip(){
   const mk      = monthKey(currentDate);
   const md      = monthData[mk]||{};
 
+  // 이달 base가 없으면 전달 마지막 날 기준 총원을 자동으로 계산해 표시
+  let base = md.base || 0;
+  if(!base) {
+    const prevDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 0); // 전달 마지막 날
+    const prevMk = monthKey(prevDate);
+    const prevTotal = calcMemberUpTo(prevMk, null);
+    if(prevTotal > 0) base = prevTotal;
+  }
+
   // 현재 날짜까지만 집계 (상단 스트립)
-  const {newC:dispNew, restC:dispRestore, outC:dispOut, base} = getCountsUpTo(upToKey);
+  const {newC:dispNew, restC:dispRestore, outC:dispOut} = getCountsUpTo(upToKey);
   const cur = base + dispNew + dispRestore - dispOut;
 
   document.getElementById('ms_total').textContent   = cur;
@@ -1140,9 +1149,10 @@ async function saveMonthSetup(){
   const mk=monthKey(currentDate);
   if(!monthData[mk]) monthData[mk]={};
   const bv=document.getElementById('inp_base').value;
-  if(bv){
-    monthData[mk].base=parseInt(bv)||0;
-    if(fbRef&&isOnline) await fbRef.child('months').child(mk).child('base').set(monthData[mk].base);
+  const baseVal = parseInt(bv)||0;
+  if(baseVal > 0){
+    monthData[mk].base=baseVal;
+    if(fbRef&&isOnline) await fbRef.child('months').child(mk).child('base').set(baseVal);
   }
   monthData[mk].note=monthData[mk].note||'';
   updateMonthStrip();
