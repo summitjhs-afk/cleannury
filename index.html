@@ -718,9 +718,10 @@ async function initFirebase() {
     fbRef.on('value', snap => {
       const d = snap.val()||{};
       allData = d.days||{}; monthData = d.months||{};
+      isOnline = true; // 데이터 수신 시 온라인 확정
       loadCurrentDay(); updateMonthStrip(); renderInlineCal();
       setSync(true,'실시간 동기화 중', new Date());
-    }, ()=>setSync(false,'연결 오류 — 오프라인 모드'));
+    }, ()=>{ isOnline=false; setSync(false,'연결 오류 — 오프라인 모드'); });
 
     // 실시간 알림 수신
     fbRef.child('notifs').limitToLast(30).on('child_added', snap => {
@@ -1267,21 +1268,35 @@ async function saveOutReason(input){
   if(!monthData[mk2]) monthData[mk2]={};
   if(!monthData[mk2].outReasons) monthData[mk2].outReasons={};
   const key2=input.dataset.key;
-  const safeKey=key2.replace(/[.#$\[\]\/]/g,'_'); // Firebase 허용 키로 변환
+  const safeKey=key2.replace(/[.#$\[\]\/]/g,'_');
+
+  // 항상 로컬 메모리에 먼저 저장
   monthData[mk2].outReasons[key2]=input.value;
+  monthData[mk2].outReasons[safeKey]=input.value;
+
+  // 시각적 피드백 먼저 표시
+  input.style.borderColor='var(--teal)';
+  input.style.background='var(--teal-lt)';
+  setTimeout(()=>{input.style.borderColor='';input.style.background='';},2000);
+
   if(fbRef&&isOnline){
     try{
       await fbRef.child('months').child(mk2).child('outReasons').child(safeKey).set(input.value);
-      // 저장 완료 시각적 피드백
-      input.style.borderColor='var(--teal)';
-      input.style.background='var(--teal-lt)';
       showToast('✅ 사유 저장 완료!');
-      setTimeout(()=>{input.style.borderColor='';input.style.background='';},2000);
     }catch(e){
-      showToast('저장 오류: '+e.message);
+      showToast('⚠️ Firebase 오류: '+e.message);
     }
   } else {
-    showToast('📱 로컬 저장됨 (오프라인)');
+    showToast('📱 저장됨 (Firebase 연결 후 자동 동기화)');
+    // 5초 후 재시도
+    setTimeout(async()=>{
+      if(fbRef&&isOnline){
+        try{
+          await fbRef.child('months').child(mk2).child('outReasons').child(safeKey).set(input.value);
+          showToast('✅ 동기화 완료!');
+        }catch(e){}
+      }
+    },5000);
   }
 }
 
