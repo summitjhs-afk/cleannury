@@ -923,30 +923,152 @@ function monthKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStar
 // ══════════════════════════════════════════
 // ATTENDANCE TABLE
 // ══════════════════════════════════════════
+function buildAttCard(wrap, i, lbl, prefix, borderColor, numColor, numBg) {
+  // 카드 래퍼
+  var div = document.createElement('div');
+  div.style.cssText = 'text-align:center;padding:8px 4px;border-right:'+(i===7?'none':'1px solid '+borderColor)+';';
+
+  // 부 라벨
+  var lblEl = document.createElement('div');
+  lblEl.style.cssText = 'font-size:11px;font-weight:700;color:var(--gray);margin-bottom:4px;';
+  lblEl.textContent = lbl;
+  div.appendChild(lblEl);
+
+  // 숫자 입력
+  var numEl = document.createElement('input');
+  numEl.type = 'number'; numEl.id = prefix+'_'+i; numEl.min = '0'; numEl.value = '0';
+  numEl.style.cssText = 'width:100%;border:1.5px solid var(--border);border-radius:8px;padding:5px 2px;font-size:18px;font-weight:900;font-family:inherit;text-align:center;color:'+numColor+';background:'+numBg+';';
+  numEl.oninput = (function(p,idx){ return function(){ syncAttCount(p,idx); }; })(prefix,i);
+  div.appendChild(numEl);
+
+  // 명단 토글 버튼
+  var toggleBtn = document.createElement('button');
+  toggleBtn.id = 'nameToggleBtn_'+prefix+'_'+i;
+  toggleBtn.textContent = '▼ 명단';
+  toggleBtn.style.cssText = 'margin-top:5px;width:100%;padding:3px 2px;font-size:10px;font-weight:700;font-family:inherit;border:1px solid '+borderColor+';border-radius:6px;background:transparent;color:var(--gray);cursor:pointer;';
+  toggleBtn.onclick = (function(p,idx){ return function(){ toggleNameList(p,idx); }; })(prefix,i);
+  div.appendChild(toggleBtn);
+
+  // 명단 영역 (기본 숨김)
+  var nameBox = document.createElement('div');
+  nameBox.id = 'nameList_'+prefix+'_'+i;
+  nameBox.style.cssText = 'display:none;margin-top:4px;text-align:left;';
+
+  var ta = document.createElement('textarea');
+  ta.id = 'nameInputs_'+prefix+'_'+i;
+  ta.placeholder = '홍길동, 이순신, 강감찬';
+  ta.rows = 2;
+  ta.style.cssText = 'width:100%;box-sizing:border-box;border:1px solid #DDD;border-radius:6px;padding:5px 6px;font-size:11px;font-family:inherit;resize:vertical;line-height:1.5;';
+  ta.oninput = (function(p,idx){ return function(){ syncAttCount(p,idx); }; })(prefix,i);
+  nameBox.appendChild(ta);
+  var hint = document.createElement('div');
+  hint.style.cssText = 'font-size:9px;color:#AAA;margin-top:2px;';
+  hint.textContent = '쉼표(,)로 구분해서 입력';
+  nameBox.appendChild(hint);
+  div.appendChild(nameBox);
+
+  wrap.appendChild(div);
+  // textarea 초기화 완료
+}
+
 function buildAttTable() {
   const wrap1=document.getElementById('buCardsWrap1'); wrap1.innerHTML='';
-  BU_LABELS_1.forEach((lbl,i)=>{
-    const div=document.createElement('div');
-    div.style.cssText='text-align:center;padding:10px 4px;border-right:'+(i===7?'none':'1px solid #F0F4F8')+';';
-    div.innerHTML='<div style="font-size:11px;font-weight:700;color:var(--gray);margin-bottom:6px;">'+lbl+'</div><input type="number" id="att1_'+i+'" min="0" value="0" oninput="updateTotals()" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:6px 2px;font-size:18px;font-weight:900;font-family:inherit;text-align:center;color:var(--blue);background:#F8FBFF;">';
-    wrap1.appendChild(div);
+  BU_LABELS_1.forEach(function(lbl,i){
+    buildAttCard(wrap1, i, lbl, 'att1', '#F0F4F8', 'var(--blue)', '#F8FBFF', 'var(--blue)');
   });
   const wrap2=document.getElementById('buCardsWrap2'); wrap2.innerHTML='';
-  BU_LABELS_2.forEach((lbl,i)=>{
-    const div=document.createElement('div');
-    div.style.cssText='text-align:center;padding:10px 4px;background:#FAFBFF;border-right:'+(i===7?'none':'1px solid #ECEEF8')+';';
-    div.innerHTML='<div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:6px;">'+lbl+'</div><input type="number" id="att2_'+i+'" min="0" value="0" oninput="updateTotals()" style="width:100%;border:1.5px solid #C5CAE9;border-radius:8px;padding:6px 2px;font-size:18px;font-weight:900;font-family:inherit;text-align:center;color:var(--navy);background:#F0F4FF;">';
-    wrap2.appendChild(div);
+  BU_LABELS_2.forEach(function(lbl,i){
+    buildAttCard(wrap2, i, lbl, 'att2', '#ECEEF8', 'var(--navy)', '#F0F4FF', 'var(--navy)');
+  });
+}
+
+// 명단 접기/펼치기
+function toggleNameList(prefix, i) {
+  var box = document.getElementById('nameList_'+prefix+'_'+i);
+  var btn = document.getElementById('nameToggleBtn_'+prefix+'_'+i);
+  if(box.style.display==='none') { box.style.display='block'; btn.textContent='▲ 명단'; }
+  else { box.style.display='none'; btn.textContent='▼ 명단'; }
+}
+
+// addNameInput — 콤마 방식에선 값 세팅용으로만 사용
+function addNameInput(prefix, i, value) {
+  var ta = document.getElementById('nameInputs_'+prefix+'_'+i);
+  if(!ta) return;
+  if(value !== undefined && value !== '') {
+    ta.value = ta.value ? ta.value + ', ' + value : value;
+    syncAttCount(prefix, i);
+  }
+}
+
+// 이름 목록 → 숫자 자동 동기화 (콤마 방식)
+function syncAttCount(prefix, i) {
+  var ta = document.getElementById('nameInputs_'+prefix+'_'+i);
+  if(!ta) return;
+  var cnt = ta.value.split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; }).length;
+  var numEl = document.getElementById(prefix+'_'+i);
+  if(numEl) numEl.value = cnt;
+  updateTotals();
+}
+
+// 모든 수련관의 이름 목록을 중복 제거해서 반환 (콤마 방식)
+function getAllUniqueNames() {
+  var names = new Set();
+  for(var g=1;g<=2;g++){
+    for(var i=0;i<8;i++){
+      var ta = document.getElementById('nameInputs_att'+g+'_'+i);
+      if(!ta || !ta.value.trim()) continue;
+      ta.value.split(',').forEach(function(s){
+        var n = s.trim();
+        if(n) names.add(n);
+      });
+    }
+  }
+  return names;
+}
+
+// 이름 목록 저장용 수집 (콤마 방식)
+function getNameLists() {
+  var result = { att1:[], att2:[] };
+  ['att1','att2'].forEach(function(prefix){
+    for(var i=0;i<8;i++){
+      var ta = document.getElementById('nameInputs_'+prefix+'_'+i);
+      var names = [];
+      if(ta && ta.value.trim()){
+        names = ta.value.split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s.length>0; });
+      }
+      result[prefix].push(names);
+    }
+  });
+  return result;
+}
+
+// 이름 목록 불러오기 (콤마 방식)
+function loadNameLists(data) {
+  ['att1','att2'].forEach(function(prefix){
+    var list = (data && data.nameLists && data.nameLists[prefix]) || [];
+    for(var i=0;i<8;i++){
+      var ta = document.getElementById('nameInputs_'+prefix+'_'+i);
+      if(!ta) continue;
+      var names = list[i] || [];
+      ta.value = names.join(', ');
+      syncAttCount(prefix, i);
+    }
   });
 }
 function updateTotals(){
   var s1=0, s2=0;
   for(var i=0;i<8;i++){ var e1=document.getElementById('att1_'+i); if(e1) s1+=parseInt(e1.value)||0; }
   for(var i=0;i<8;i++){ var e2=document.getElementById('att2_'+i); if(e2) s2+=parseInt(e2.value)||0; }
-  var sA=s1+s2;
   var nonAtt=parseInt((document.getElementById('nonatt_count')||{value:'0'}).value)||0;
+  var nameLists=getNameLists();
   var el1=document.getElementById('tot_att1'); if(el1) el1.textContent=s1;
   var el2=document.getElementById('tot_att2'); if(el2) el2.textContent=s2;
+  // 중복 제거 합계 (이름 기반)
+  var uniqueNames = getAllUniqueNames();
+  // 이름 없이 숫자만 입력된 경우 숫자 합산으로 fallback
+  var namedTotal = uniqueNames.size;
+  var numTotal = s1 + s2;
+  var sA = namedTotal > 0 ? namedTotal : numTotal;
   document.getElementById('tot_att').textContent=sA;
   var counts=getCountsUpTo(dateKey(currentDate));
   var totalMember=counts.base+counts.newC+counts.restC-counts.outC;
@@ -997,6 +1119,7 @@ function loadCurrentDay(){
   for(var i=0;i<8;i++){var ea=document.getElementById('att1_'+i);if(ea)ea.value=(src1&&src1[i]!==undefined)?src1[i]:0;}
   for(var i=0;i<8;i++){var eb=document.getElementById('att2_'+i);if(eb)eb.value=(src2&&src2[i]!==undefined)?src2[i]:0;}
   var nc=document.getElementById('nonatt_count');if(nc)nc.value=d.nonAtt||0;
+  loadNameLists(d);
   setAbsList(d.absList||[]);
   document.getElementById('taEvent').value=d.event||'';
   document.getElementById('taMtg').value=d.mtg||'';
@@ -1054,11 +1177,12 @@ async function saveDay(){
   for(var i=0;i<8;i++){var sa=document.getElementById('att1_'+i);att1.push(sa?parseInt(sa.value)||0:0);}
   for(var i=0;i<8;i++){var sb=document.getElementById('att2_'+i);att2.push(sb?parseInt(sb.value)||0:0);}
   var nonAtt=parseInt((document.getElementById('nonatt_count')||{value:'0'}).value)||0;
+  var nameLists=getNameLists();
   const mgrInVal=document.getElementById('mgrIn').value;
   const mgrReVal=document.getElementById('mgrRe').value;
   const mgrOutVal=document.getElementById('mgrOut').value;
   var att=att1.concat(att2);
-  var data={att:att,att1:att1,att2:att2,nonAtt:nonAtt,absList:getAbsList(),event:document.getElementById('taEvent').value,mtg:document.getElementById('taMtg').value,edu:document.getElementById('taEdu').value,cons:document.getElementById('taCons').value,mgrIn:mgrInVal,mgrRe:mgrReVal,mgrOut:mgrOutVal,savedAt:new Date().toISOString()};
+  var data={att:att,att1:att1,att2:att2,nonAtt:nonAtt,nameLists:nameLists,absList:getAbsList(),event:document.getElementById('taEvent').value,mtg:document.getElementById('taMtg').value,edu:document.getElementById('taEdu').value,cons:document.getElementById('taCons').value,mgrIn:mgrInVal,mgrRe:mgrReVal,mgrOut:mgrOutVal,savedAt:new Date().toISOString()};
   allData[key]=data;
 
   if(fbRef&&isOnline){
